@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <title>Subscription Tracker</title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/charts.css">
+</head>
+<body>
+  <!-- Application Container -->
+  <div id="app">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="app-title">Subscription Tracker</h1>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item">
+          <a href="#" data-route="dashboard" class="nav-link active">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" data-route="subscriptions" class="nav-link">
+            <span class="nav-icon">📝</span>
+            <span class="nav-text">Subscriptions</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" data-route="analytics" class="nav-link">
+            <span class="nav-icon">📈</span>
+            <span class="nav-text">Analytics</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" data-route="budget" class="nav-link">
+            <span class="nav-icon">💰</span>
+            <span class="nav-text">Budget</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" data-route="settings" class="nav-link">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-text">Settings</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <p class="app-version">v1.0.0</p>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- View Container (dynamically populated) -->
+      <div id="view-container"></div>
+    </main>
+  </div>
+
+  <!-- Modal Container -->
+  <div id="modal-root"></div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- JavaScript -->
+  <script src="js/lib/chart.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+{
+  "name": "subscription-tracker",
+  "version": "1.0.0",
+  "description": "Desktop subscription tracking application with expense analytics, notifications, and budget management",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir"
+  },
+  "keywords": [
+    "subscription",
+    "tracker",
+    "electron",
+    "desktop",
+    "budget",
+    "analytics",
+    "expense"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1"
+  },
+  "build": {
+    "appId": "com.subscriptiontracker.app",
+    "productName": "Subscription Tracker",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "config/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.finance",
+      "icon": "src/renderer/assets/icons/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "src/renderer/assets/icons/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "icon": "src/renderer/assets/icons/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office"
+    }
+  }
+}
