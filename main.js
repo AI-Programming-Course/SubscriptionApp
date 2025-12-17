@@ -1,71 +1,72 @@
-const { app, BrowserWindow, ipcMain, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 
-// Import main process modules
-const WindowManager = require('./src/main/window-manager');
-const NotificationManager = require('./src/main/notification-manager');
-const MenuBuilder = require('./src/main/menu');
-const IPCHandlers = require('./src/main/ipc-handlers');
+console.log('Main.js loaded, app object:', typeof app);
 
-class SubscriptionTrackerApp {
-  constructor() {
-    this.windowManager = null;
-    this.notificationManager = null;
-    this.isDevMode = process.argv.includes('--dev');
-  }
-
-  async initialize() {
-    // Set app user model id for Windows notifications
-    if (process.platform === 'win32') {
-      app.setAppUserModelId('com.subscriptiontracker.app');
-    }
-
-    // Wait for app to be ready
-    await app.whenReady();
-
-    // Initialize managers
-    this.windowManager = new WindowManager(this.isDevMode);
-    this.notificationManager = new NotificationManager();
-
-    // Set up IPC handlers
-    IPCHandlers.setupHandlers(ipcMain, this.notificationManager);
-
-    // Create main window
-    await this.windowManager.createMainWindow();
-
-    // Build application menu
-    const menuBuilder = new MenuBuilder(this.windowManager);
-    menuBuilder.buildMenu();
-
-    // Start notification service
-    this.notificationManager.start();
-
-    // macOS specific: re-create window when dock icon is clicked
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        this.windowManager.createMainWindow();
-      }
-    });
-
-    // Handle all windows closed
-    app.on('window-all-closed', () => {
-      if (process.platform !== 'darwin') {
-        app.quit();
-      }
-    });
-
-    // Handle app quit
-    app.on('before-quit', () => {
-      if (this.notificationManager) {
-        this.notificationManager.stop();
-      }
-    });
-  }
+// Set app user model id for Windows notifications
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.subscriptiontracker.app');
 }
 
-// Create app instance and initialize
-const subscriptionApp = new SubscriptionTrackerApp();
-subscriptionApp.initialize().catch(console.error);
+let mainWindow = null;
+const isDevMode = process.argv.includes('--dev');
+
+// Initialize app when ready
+app.whenReady().then(() => {
+  console.log('App is ready!');
+
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'Subscription Tracker',
+    backgroundColor: '#ffffff',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      preload: path.join(__dirname, 'preload.js')
+    },
+    show: false
+  });
+
+  // Load the index.html
+  mainWindow.loadFile('src/renderer/index.html');
+
+  // Show window when ready
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+
+    // Open DevTools in dev mode
+    if (isDevMode) {
+      mainWindow.webContents.openDevTools();
+    }
+  });
+
+  // Handle window closed
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  console.log('Window created successfully');
+});
+
+// macOS specific: re-create window when dock icon is clicked
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0 && !mainWindow) {
+    // Re-create window logic here
+  }
+});
+
+// Handle all windows closed
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
