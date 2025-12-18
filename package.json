@@ -24,11 +24,11 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.1.0",
-    "electron-builder": "^24.9.1"
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
-    "chart.js": "^4.4.1"
+    "chart.js": "^4.5.1"
   },
   "build": {
     "appId": "com.subscriptiontracker.app",

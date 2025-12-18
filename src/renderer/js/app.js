@@ -162,6 +162,8 @@ class App {
   }
 
   navigate(route) {
+    console.log('🧭 Navigating to route:', route);
+
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
       link.classList.toggle('active', link.getAttribute('data-route') === route);
@@ -171,28 +173,40 @@ class App {
   }
 
   loadView(view) {
+    console.log('📺 loadView called with view:', view);
+
     const container = document.getElementById('view-container');
-    if (!container) return;
+    if (!container) {
+      console.error('❌ View container not found');
+      return;
+    }
 
     this.currentView = view;
+    console.log('✅ Current view set to:', this.currentView);
 
     switch (view) {
       case 'dashboard':
+        console.log('📊 Rendering dashboard...');
         this.renderDashboard(container);
         break;
       case 'subscriptions':
+        console.log('📝 Rendering subscriptions...');
         this.renderSubscriptions(container);
         break;
       case 'analytics':
+        console.log('📈 Rendering analytics...');
         this.renderAnalytics(container);
         break;
       case 'budget':
+        console.log('💰 Rendering budget...');
         this.renderBudget(container);
         break;
       case 'settings':
+        console.log('⚙️ Rendering settings...');
         this.renderSettings(container);
         break;
       default:
+        console.log('📊 Rendering default (dashboard)...');
         this.renderDashboard(container);
     }
   }
@@ -632,6 +646,23 @@ class App {
   }
 
   createSubscriptionForm(subscription = null) {
+    console.log('📝 Creating subscription form, edit mode:', !!subscription);
+    console.log('📝 Subscription data:', subscription);
+
+    // Format date for input field (YYYY-MM-DD)
+    let nextBillingDateValue = '';
+    if (subscription?.nextBillingDate) {
+      const date = new Date(subscription.nextBillingDate);
+      nextBillingDateValue = date.toISOString().split('T')[0];
+      console.log('📅 Formatted billing date:', nextBillingDateValue);
+    }
+
+    const billingCycleType = subscription?.billingCycle?.type || 'monthly';
+    const selectedCurrency = subscription?.currency || this.settings.defaultCurrency;
+    const selectedCategory = subscription?.category || this.categories[0]?.name;
+
+    console.log('🔧 Form defaults - Cycle:', billingCycleType, 'Currency:', selectedCurrency, 'Category:', selectedCategory);
+
     return `
       <form id="subscriptionForm">
         <div class="form-group">
@@ -648,7 +679,7 @@ class App {
           <div class="form-group">
             <label class="form-label">Currency</label>
             <select class="form-select" name="currency">
-              ${this.renderCurrencyOptions()}
+              ${this.renderCurrencyOptionsWithSelection(selectedCurrency)}
             </select>
           </div>
         </div>
@@ -657,25 +688,25 @@ class App {
           <div class="form-group">
             <label class="form-label">Billing Cycle *</label>
             <select class="form-select" name="billingCycleType">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly" selected>Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="yearly">Yearly</option>
-              <option value="custom">Custom</option>
+              <option value="daily" ${billingCycleType === 'daily' ? 'selected' : ''}>Daily</option>
+              <option value="weekly" ${billingCycleType === 'weekly' ? 'selected' : ''}>Weekly</option>
+              <option value="monthly" ${billingCycleType === 'monthly' ? 'selected' : ''}>Monthly</option>
+              <option value="quarterly" ${billingCycleType === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+              <option value="yearly" ${billingCycleType === 'yearly' ? 'selected' : ''}>Yearly</option>
+              <option value="custom" ${billingCycleType === 'custom' ? 'selected' : ''}>Custom</option>
             </select>
           </div>
 
           <div class="form-group">
             <label class="form-label">Next Billing Date *</label>
-            <input type="date" class="form-input" name="nextBillingDate" required>
+            <input type="date" class="form-input" name="nextBillingDate" value="${nextBillingDateValue}" required>
           </div>
         </div>
 
         <div class="form-group">
           <label class="form-label">Category</label>
           <select class="form-select" name="category">
-            ${this.categories.map(c => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('')}
+            ${this.categories.map(c => `<option value="${c.name}" ${c.name === selectedCategory ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')}
           </select>
         </div>
 
@@ -687,7 +718,15 @@ class App {
     `;
   }
 
-  saveSubscription(modal) {
+  renderCurrencyOptionsWithSelection(selectedCurrency) {
+    const currencies = currencyService.getCurrencies();
+    return currencies.map(c => `
+      <option value="${c.code}" ${c.code === selectedCurrency ? 'selected' : ''}>${c.code} - ${c.name}</option>
+    `).join('');
+  }
+
+  saveSubscription(modal, existingId = null) {
+    console.log('💾 saveSubscription called, existingId:', existingId);
     const form = modal.element.querySelector('#subscriptionForm');
     const formData = new FormData(form);
 
@@ -704,73 +743,309 @@ class App {
         notes: formData.get('notes')
       };
 
-      subscriptionService.create(data);
-      Toast.success('Subscription added successfully!');
+      console.log('📦 Subscription data prepared:', data);
+
+      if (existingId) {
+        console.log('✏️ Updating existing subscription:', existingId);
+        subscriptionService.update(existingId, data);
+        Toast.success('Subscription updated successfully!');
+      } else {
+        console.log('➕ Creating new subscription');
+        subscriptionService.create(data);
+        Toast.success('Subscription added successfully!');
+      }
+
       modal.close();
+      console.log('🔄 Reloading view:', this.currentView);
       this.loadView(this.currentView);
     } catch (error) {
+      console.error('❌ Error saving subscription:', error);
       Toast.error(error.message);
     }
   }
 
   editSubscription(id) {
+    console.log('✏️ editSubscription called with id:', id);
     const sub = subscriptionService.getById(id);
-    if (!sub) return;
 
-    Toast.info('Edit feature - form would appear here');
+    if (!sub) {
+      console.error('❌ Subscription not found:', id);
+      Toast.error('Subscription not found');
+      return;
+    }
+
+    console.log('📋 Editing subscription:', sub);
+
+    const form = this.createSubscriptionForm(sub);
+    const modal = new Modal('Edit Subscription', form, {
+      footer: `
+        <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+        <button class="btn btn-primary" data-action="save">Update</button>
+      `
+    });
+
+    modal.open();
+    console.log('✅ Edit modal opened');
+
+    modal.element.querySelector('[data-action="save"]').addEventListener('click', () => {
+      console.log('💾 Update button clicked');
+      this.saveSubscription(modal, id);
+    });
+
+    modal.element.querySelector('[data-action="cancel"]').addEventListener('click', () => {
+      console.log('❌ Cancel clicked in edit modal');
+      modal.close();
+    });
   }
 
   deleteSubscription(id) {
+    console.log('🗑️ deleteSubscription called with id:', id);
+
     Modal.confirm('Delete Subscription', 'Are you sure you want to delete this subscription?', () => {
-      subscriptionService.delete(id);
-      Toast.success('Subscription deleted');
-      this.loadView(this.currentView);
+      console.log('✅ User confirmed deletion');
+      try {
+        subscriptionService.delete(id);
+        console.log('✅ Subscription deleted:', id);
+        Toast.success('Subscription deleted');
+        this.loadView(this.currentView);
+      } catch (error) {
+        console.error('❌ Error deleting subscription:', error);
+        Toast.error('Failed to delete subscription: ' + error.message);
+      }
     });
   }
 
   showAddBudgetModal() {
-    Toast.info('Budget creation - modal would appear here');
+    console.log('💰 showAddBudgetModal called');
+
+    try {
+      const form = this.createBudgetForm();
+      console.log('✅ Budget form created');
+
+      const modal = new Modal('Create Budget', form, {
+        footer: `
+          <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+          <button class="btn btn-primary" data-action="save">Create Budget</button>
+        `
+      });
+
+      modal.open();
+      console.log('✅ Budget modal opened');
+
+      // Setup period toggle
+      const budgetTypeSelect = modal.element.querySelector('[name="budgetType"]');
+      const categoryGroup = modal.element.querySelector('#categoryGroup');
+
+      budgetTypeSelect.addEventListener('change', (e) => {
+        console.log('📊 Budget type changed to:', e.target.value);
+        if (e.target.value === 'category') {
+          categoryGroup.style.display = 'block';
+        } else {
+          categoryGroup.style.display = 'none';
+        }
+      });
+
+      modal.element.querySelector('[data-action="save"]').addEventListener('click', () => {
+        console.log('💾 Create budget button clicked');
+        this.saveBudget(modal);
+      });
+
+      modal.element.querySelector('[data-action="cancel"]').addEventListener('click', () => {
+        console.log('❌ Cancel clicked in budget modal');
+        modal.close();
+      });
+    } catch (error) {
+      console.error('❌ Error in showAddBudgetModal:', error);
+      Toast.error('Failed to open budget modal: ' + error.message);
+    }
+  }
+
+  createBudgetForm() {
+    console.log('📝 Creating budget form');
+
+    return `
+      <form id="budgetForm">
+        <div class="form-group">
+          <label class="form-label">Budget Type *</label>
+          <select class="form-select" name="budgetType" required>
+            <option value="monthly">Monthly Budget</option>
+            <option value="yearly">Yearly Budget</option>
+            <option value="category">Category Budget</option>
+          </select>
+          <small style="color: var(--text-secondary); font-size: 12px;">
+            Choose whether this budget applies monthly, yearly, or to a specific category
+          </small>
+        </div>
+
+        <div id="categoryGroup" class="form-group" style="display: none;">
+          <label class="form-label">Category *</label>
+          <select class="form-select" name="category">
+            ${this.categories.map(c => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2">
+          <div class="form-group">
+            <label class="form-label">Budget Amount *</label>
+            <input type="number" class="form-input" name="amount" step="0.01" min="0" required>
+            <small style="color: var(--text-secondary); font-size: 12px;">
+              Maximum spending limit
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Currency</label>
+            <select class="form-select" name="currency">
+              ${this.renderCurrencyOptionsWithSelection(this.settings.defaultCurrency)}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Alert Threshold (%)</label>
+          <input type="number" class="form-input" name="alertThreshold" value="80" min="0" max="100" step="5">
+          <small style="color: var(--text-secondary); font-size: 12px;">
+            Get notified when spending reaches this percentage (default: 80%)
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" name="isActive" checked style="width: auto;">
+            <span>Active</span>
+          </label>
+          <small style="color: var(--text-secondary); font-size: 12px;">
+            Inactive budgets won't show alerts
+          </small>
+        </div>
+      </form>
+    `;
+  }
+
+  saveBudget(modal) {
+    console.log('💾 saveBudget called');
+    const form = modal.element.querySelector('#budgetForm');
+    const formData = new FormData(form);
+
+    try {
+      const budgetType = formData.get('budgetType');
+      const category = formData.get('category');
+
+      const data = {
+        type: budgetType,
+        amount: parseFloat(formData.get('amount')),
+        currency: formData.get('currency'),
+        alertThreshold: parseInt(formData.get('alertThreshold')) || 80,
+        isActive: formData.get('isActive') === 'on'
+      };
+
+      // Add category if it's a category budget
+      if (budgetType === 'category') {
+        data.category = category;
+        console.log('📂 Category budget for:', category);
+      }
+
+      // Set period for monthly/yearly budgets
+      if (budgetType === 'monthly' || budgetType === 'yearly') {
+        const now = new Date();
+        data.period = {
+          year: now.getFullYear(),
+          month: budgetType === 'monthly' ? now.getMonth() + 1 : null
+        };
+        console.log('📅 Budget period:', data.period);
+      }
+
+      console.log('📦 Budget data prepared:', data);
+
+      budgetService.create(data);
+      console.log('✅ Budget created successfully');
+
+      Toast.success('Budget created successfully!');
+      modal.close();
+      console.log('🔄 Reloading view:', this.currentView);
+      this.loadView(this.currentView);
+    } catch (error) {
+      console.error('❌ Error saving budget:', error);
+      Toast.error('Failed to create budget: ' + error.message);
+    }
   }
 
   updateCurrencySettings() {
+    console.log('💱 updateCurrencySettings called');
     const select = document.getElementById('defaultCurrency');
+
     if (select) {
-      this.settings.defaultCurrency = select.value;
+      const newCurrency = select.value;
+      console.log('💱 Updating currency from', this.settings.defaultCurrency, 'to', newCurrency);
+
+      this.settings.defaultCurrency = newCurrency;
       storageService.setSettings(this.settings.toJSON());
+      console.log('✅ Currency settings saved');
+
       Toast.success('Currency settings updated!');
+    } else {
+      console.error('❌ Currency select not found');
     }
   }
 
   async exportData() {
+    console.log('📤 exportData called');
+
     if (!window.electronAPI) {
+      console.error('❌ electronAPI not available');
       Toast.error('Export is only available in desktop app');
       return;
     }
 
+    console.log('📊 Exporting all data...');
     const data = storageService.exportAll();
-    const result = await window.electronAPI.exportData(data);
+    console.log('📦 Data to export:', {
+      subscriptions: data.subscriptions?.length || 0,
+      budgets: data.budgets?.length || 0,
+      categories: data.categories?.length || 0
+    });
+
+    console.log('💾 Calling electronAPI.exportData with CSV format...');
+    const result = await window.electronAPI.exportData(data, 'csv');
+    console.log('✅ Export result:', result);
 
     if (result.success) {
-      Toast.success('Data exported successfully!');
+      console.log('✅ Export successful to:', result.filePath);
+      Toast.success('Data exported to CSV successfully!');
     } else if (!result.canceled) {
-      Toast.error('Failed to export data');
+      console.error('❌ Export failed:', result.error);
+      Toast.error('Failed to export data: ' + (result.error || 'Unknown error'));
+    } else {
+      console.log('ℹ️ Export canceled by user');
     }
   }
 
   async importData() {
+    console.log('📥 importData called');
+
     if (!window.electronAPI) {
+      console.error('❌ electronAPI not available');
       Toast.error('Import is only available in desktop app');
       return;
     }
 
+    console.log('💾 Calling electronAPI.importData...');
     const result = await window.electronAPI.importData();
+    console.log('✅ Import result:', result);
 
     if (result.success) {
+      console.log('📊 Importing data into storage...');
       storageService.importAll(result.data);
+      console.log('✅ Data imported successfully');
+
       Toast.success('Data imported successfully!');
+      console.log('🔄 Reloading page...');
       window.location.reload();
     } else if (!result.canceled) {
-      Toast.error('Failed to import data');
+      console.error('❌ Import failed:', result.error);
+      Toast.error('Failed to import data: ' + (result.error || 'Unknown error'));
+    } else {
+      console.log('ℹ️ Import canceled by user');
     }
   }
 }

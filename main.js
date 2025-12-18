@@ -4,6 +4,80 @@ const fs = require('fs').promises;
 
 console.log('Main.js loaded, app object:', typeof app);
 
+// Helper function to convert data to CSV format (Google Sheets compatible)
+function convertToCSV(data) {
+  console.log('🔄 Converting to CSV...');
+
+  const subscriptions = data.subscriptions || [];
+  console.log('📋 Processing', subscriptions.length, 'subscriptions');
+
+  if (subscriptions.length === 0) {
+    return 'Name,Cost,Currency,Billing Cycle,Next Billing Date,Category,Status,Notes\n';
+  }
+
+  // CSV Headers
+  const headers = [
+    'Name',
+    'Cost',
+    'Currency',
+    'Billing Cycle',
+    'Next Billing Date',
+    'Category',
+    'Status',
+    'Notes',
+    'Created Date'
+  ];
+
+  // Helper to escape CSV fields
+  const escapeCSV = (field) => {
+    if (field === null || field === undefined) return '';
+    const str = String(field);
+    // Escape quotes and wrap in quotes if contains comma, quote, or newline
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  // Helper to format billing cycle
+  const formatBillingCycle = (cycle) => {
+    if (!cycle || !cycle.type) return 'Monthly';
+    return cycle.type.charAt(0).toUpperCase() + cycle.type.slice(1);
+  };
+
+  // Helper to format date for Google Sheets
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      // Format as YYYY-MM-DD which Google Sheets recognizes
+      return date.toISOString().split('T')[0];
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  // Build CSV rows
+  const rows = subscriptions.map(sub => {
+    return [
+      escapeCSV(sub.name),
+      escapeCSV(sub.cost),
+      escapeCSV(sub.currency || 'USD'),
+      escapeCSV(formatBillingCycle(sub.billingCycle)),
+      escapeCSV(formatDate(sub.nextBillingDate)),
+      escapeCSV(sub.category || 'Other'),
+      escapeCSV(sub.isActive ? 'Active' : 'Inactive'),
+      escapeCSV(sub.notes || ''),
+      escapeCSV(formatDate(sub.createdAt))
+    ].join(',');
+  });
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  console.log('✅ CSV created,', rows.length, 'rows');
+
+  return csv;
+}
+
 // Set app user model id for Windows notifications
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.subscriptiontracker.app');
@@ -20,25 +94,54 @@ function setupIpcHandlers() {
   });
 
   // Export data
-  ipcMain.handle('export-data', async (event, data) => {
+  ipcMain.handle('export-data', async (event, data, format = 'csv') => {
+    console.log('📤 Export data handler called, format:', format);
+    console.log('📊 Data keys:', Object.keys(data));
+
     try {
+      const timestamp = new Date().toISOString().split('T')[0];
+      const defaultPath = format === 'csv'
+        ? `subscription-export-${timestamp}.csv`
+        : `subscription-backup-${timestamp}.json`;
+
+      const filters = format === 'csv'
+        ? [
+            { name: 'CSV Files', extensions: ['csv'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
+        : [
+            { name: 'JSON Files', extensions: ['json'] },
+            { name: 'All Files', extensions: ['*'] }
+          ];
+
+      console.log('💾 Opening save dialog...');
       const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
         title: 'Export Subscription Data',
-        defaultPath: `subscription-backup-${Date.now()}.json`,
-        filters: [
-          { name: 'JSON Files', extensions: ['json'] },
-          { name: 'All Files', extensions: ['*'] }
-        ]
+        defaultPath,
+        filters
       });
 
       if (canceled) {
+        console.log('❌ Export canceled by user');
         return { success: false, canceled: true };
       }
 
-      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
-      return { success: true };
+      console.log('✅ Save path selected:', filePath);
+
+      let fileContent;
+      if (format === 'csv') {
+        fileContent = convertToCSV(data);
+        console.log('📝 Converted to CSV, length:', fileContent.length);
+      } else {
+        fileContent = JSON.stringify(data, null, 2);
+        console.log('📝 Converted to JSON, length:', fileContent.length);
+      }
+
+      await fs.writeFile(filePath, fileContent, 'utf8');
+      console.log('✅ File written successfully');
+      return { success: true, filePath };
     } catch (error) {
-      console.error('Export error:', error);
+      console.error('❌ Export error:', error);
       return { success: false, error: error.message };
     }
   });

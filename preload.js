@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
   // Data import/export
-  exportData: (data) => ipcRenderer.invoke('export-data', data),
+  exportData: (data, format) => ipcRenderer.invoke('export-data', data, format),
   importData: () => ipcRenderer.invoke('import-data'),
 
   // External links
