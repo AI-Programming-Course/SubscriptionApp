@@ -226,26 +226,35 @@ export class BudgetService {
    * Get overall budget summary
    */
   getBudgetSummary() {
-    const monthlyBudget = this.getCurrentMonthBudget();
-    const yearlyBudget = this.getCurrentYearBudget();
+    const now = new Date();
+    const activeBudgets = this.getActive().filter(b => b.isInPeriod(now));
 
     const summary = {
       monthly: null,
       yearly: null,
-      categories: []
+      monthlyWithCategory: [],
+      yearlyWithCategory: []
     };
 
+    // Get overall monthly budget (no category)
+    const monthlyBudget = activeBudgets.find(b => b.type === 'monthly' && b.category === null);
     if (monthlyBudget) {
       summary.monthly = this.getBudgetStatus(monthlyBudget.id);
     }
 
+    // Get overall yearly budget (no category)
+    const yearlyBudget = activeBudgets.find(b => b.type === 'yearly' && b.category === null);
     if (yearlyBudget) {
       summary.yearly = this.getBudgetStatus(yearlyBudget.id);
     }
 
-    // Get all category budgets
-    const categoryBudgets = this.getActive().filter(b => b.category !== null);
-    summary.categories = categoryBudgets.map(b => this.getBudgetStatus(b.id));
+    // Get monthly budgets with categories
+    const monthlyWithCategory = activeBudgets.filter(b => b.type === 'monthly' && b.category !== null);
+    summary.monthlyWithCategory = monthlyWithCategory.map(b => this.getBudgetStatus(b.id));
+
+    // Get yearly budgets with categories
+    const yearlyWithCategory = activeBudgets.filter(b => b.type === 'yearly' && b.category !== null);
+    summary.yearlyWithCategory = yearlyWithCategory.map(b => this.getBudgetStatus(b.id));
 
     return summary;
   }

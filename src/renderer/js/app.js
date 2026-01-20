@@ -500,6 +500,9 @@ class App {
   // BUDGET VIEW
   renderBudget(container) {
     const summary = budgetService.getBudgetSummary();
+    const hasBudgets = summary.monthly || summary.yearly ||
+                       summary.monthlyWithCategory.length > 0 ||
+                       summary.yearlyWithCategory.length > 0;
 
     container.innerHTML = `
       <div class="page-header">
@@ -511,11 +514,30 @@ class App {
         </div>
       </div>
 
-      ${summary.monthly || summary.yearly ? `
-        <div class="grid grid-cols-2">
-          ${summary.monthly ? this.renderBudgetStatus(summary.monthly) : ''}
-          ${summary.yearly ? this.renderBudgetStatus(summary.yearly) : ''}
-        </div>
+      ${hasBudgets ? `
+        <!-- Overall Budgets -->
+        ${summary.monthly || summary.yearly ? `
+          <div class="grid grid-cols-2">
+            ${summary.monthly ? this.renderBudgetStatus(summary.monthly) : ''}
+            ${summary.yearly ? this.renderBudgetStatus(summary.yearly) : ''}
+          </div>
+        ` : ''}
+
+        <!-- Monthly Budgets with Categories -->
+        ${summary.monthlyWithCategory.length > 0 ? `
+          <h3 style="margin: 24px 0 16px; color: var(--text-secondary);">Monthly Category Budgets</h3>
+          <div class="grid grid-cols-2">
+            ${summary.monthlyWithCategory.map(status => this.renderBudgetStatus(status)).join('')}
+          </div>
+        ` : ''}
+
+        <!-- Yearly Budgets with Categories -->
+        ${summary.yearlyWithCategory.length > 0 ? `
+          <h3 style="margin: 24px 0 16px; color: var(--text-secondary);">Yearly Category Budgets</h3>
+          <div class="grid grid-cols-2">
+            ${summary.yearlyWithCategory.map(status => this.renderBudgetStatus(status)).join('')}
+          </div>
+        ` : ''}
       ` : `
         <div class="empty-state">
           <div class="empty-state-icon">💰</div>
@@ -530,11 +552,19 @@ class App {
   renderBudgetStatus(status) {
     const { budget, spent, remaining, percentageUsed, alertLevel } = status;
     const progressClass = alertLevel === 'danger' ? 'danger' : alertLevel === 'warning' ? 'warning' : 'success';
+    const typeLabel = budget.type.charAt(0).toUpperCase() + budget.type.slice(1);
+    const title = budget.category
+      ? `${typeLabel} Budget - ${budget.category}`
+      : `${typeLabel} Budget`;
 
     return `
       <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">${budget.type.charAt(0).toUpperCase() + budget.type.slice(1)} Budget</h3>
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 class="card-title">${title}</h3>
+          <div class="budget-actions">
+            <button class="icon-btn" data-app-action="editBudget" data-param="${budget.id}" title="Edit">✏️</button>
+            <button class="icon-btn" data-app-action="deleteBudget" data-param="${budget.id}" title="Delete">🗑️</button>
+          </div>
         </div>
         <div class="card-body">
           <div style="margin-bottom: 16px;">
@@ -832,17 +862,22 @@ class App {
       modal.open();
       console.log('✅ Budget modal opened');
 
-      // Setup period toggle
-      const budgetTypeSelect = modal.element.querySelector('[name="budgetType"]');
-      const categoryGroup = modal.element.querySelector('#categoryGroup');
+      // Setup monthly checkbox toggle
+      const enableMonthly = modal.element.querySelector('#enableMonthly');
+      const monthlyFields = modal.element.querySelector('#monthlyFields');
 
-      budgetTypeSelect.addEventListener('change', (e) => {
-        console.log('📊 Budget type changed to:', e.target.value);
-        if (e.target.value === 'category') {
-          categoryGroup.style.display = 'block';
-        } else {
-          categoryGroup.style.display = 'none';
-        }
+      enableMonthly.addEventListener('change', (e) => {
+        console.log('📊 Monthly budget toggled:', e.target.checked);
+        monthlyFields.style.display = e.target.checked ? 'block' : 'none';
+      });
+
+      // Setup yearly checkbox toggle
+      const enableYearly = modal.element.querySelector('#enableYearly');
+      const yearlyFields = modal.element.querySelector('#yearlyFields');
+
+      enableYearly.addEventListener('change', (e) => {
+        console.log('📊 Yearly budget toggled:', e.target.checked);
+        yearlyFields.style.display = e.target.checked ? 'block' : 'none';
       });
 
       modal.element.querySelector('[data-action="save"]').addEventListener('click', () => {
@@ -866,38 +901,65 @@ class App {
     return `
       <form id="budgetForm">
         <div class="form-group">
-          <label class="form-label">Budget Type *</label>
-          <select class="form-select" name="budgetType" required>
-            <option value="monthly">Monthly Budget</option>
-            <option value="yearly">Yearly Budget</option>
-            <option value="category">Category Budget</option>
-          </select>
-          <small style="color: var(--text-secondary); font-size: 12px;">
-            Choose whether this budget applies monthly, yearly, or to a specific category
-          </small>
-        </div>
-
-        <div id="categoryGroup" class="form-group" style="display: none;">
-          <label class="form-label">Category *</label>
-          <select class="form-select" name="category">
-            ${this.categories.map(c => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('')}
+          <label class="form-label">Currency</label>
+          <select class="form-select" name="currency">
+            ${this.renderCurrencyOptionsWithSelection(this.settings.defaultCurrency)}
           </select>
         </div>
 
-        <div class="grid grid-cols-2">
-          <div class="form-group">
-            <label class="form-label">Budget Amount *</label>
-            <input type="number" class="form-input" name="amount" step="0.01" min="0" required>
-            <small style="color: var(--text-secondary); font-size: 12px;">
-              Maximum spending limit
-            </small>
+        <!-- Monthly Budget Section -->
+        <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
+              <input type="checkbox" name="enableMonthly" id="enableMonthly" style="width: auto;">
+              <span style="font-weight: 600;">Monthly Budget</span>
+            </label>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Currency</label>
-            <select class="form-select" name="currency">
-              ${this.renderCurrencyOptionsWithSelection(this.settings.defaultCurrency)}
-            </select>
+          <div id="monthlyFields" style="display: none;">
+            <div class="form-group">
+              <label class="form-label">Monthly Amount</label>
+              <input type="number" class="form-input" name="monthlyAmount" step="0.01" min="0" placeholder="e.g., 500">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Category (Optional)</label>
+              <select class="form-select" name="monthlyCategory">
+                <option value="">All Categories</option>
+                ${this.categories.map(c => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('')}
+              </select>
+              <small style="color: var(--text-secondary); font-size: 12px;">
+                Leave empty to track all spending, or select a category to track specific spending
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Yearly Budget Section -->
+        <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
+              <input type="checkbox" name="enableYearly" id="enableYearly" style="width: auto;">
+              <span style="font-weight: 600;">Yearly Budget</span>
+            </label>
+          </div>
+
+          <div id="yearlyFields" style="display: none;">
+            <div class="form-group">
+              <label class="form-label">Yearly Amount</label>
+              <input type="number" class="form-input" name="yearlyAmount" step="0.01" min="0" placeholder="e.g., 5000">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Category (Optional)</label>
+              <select class="form-select" name="yearlyCategory">
+                <option value="">All Categories</option>
+                ${this.categories.map(c => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('')}
+              </select>
+              <small style="color: var(--text-secondary); font-size: 12px;">
+                Leave empty to track all spending, or select a category to track specific spending
+              </small>
+            </div>
           </div>
         </div>
 
@@ -928,39 +990,76 @@ class App {
     const formData = new FormData(form);
 
     try {
-      const budgetType = formData.get('budgetType');
-      const category = formData.get('category');
+      const enableMonthly = formData.get('enableMonthly') === 'on';
+      const enableYearly = formData.get('enableYearly') === 'on';
 
-      const data = {
-        type: budgetType,
-        amount: parseFloat(formData.get('amount')),
-        currency: formData.get('currency'),
-        alertThreshold: parseInt(formData.get('alertThreshold')) || 80,
-        isActive: formData.get('isActive') === 'on'
-      };
-
-      // Add category if it's a category budget
-      if (budgetType === 'category') {
-        data.category = category;
-        console.log('📂 Category budget for:', category);
+      if (!enableMonthly && !enableYearly) {
+        Toast.error('Please enable at least one budget type (monthly or yearly)');
+        return;
       }
 
-      // Set period for monthly/yearly budgets
-      if (budgetType === 'monthly' || budgetType === 'yearly') {
-        const now = new Date();
-        data.period = {
-          year: now.getFullYear(),
-          month: budgetType === 'monthly' ? now.getMonth() + 1 : null
+      const currency = formData.get('currency');
+      const alertThreshold = parseInt(formData.get('alertThreshold')) || 80;
+      const isActive = formData.get('isActive') === 'on';
+      let budgetsCreated = 0;
+
+      // Create monthly budget if enabled
+      if (enableMonthly) {
+        const monthlyAmount = parseFloat(formData.get('monthlyAmount'));
+        if (!monthlyAmount || monthlyAmount <= 0) {
+          Toast.error('Please enter a valid monthly budget amount');
+          return;
+        }
+
+        const monthlyCategory = formData.get('monthlyCategory');
+        const monthlyData = {
+          type: 'monthly',
+          amount: monthlyAmount,
+          currency: currency,
+          alertThreshold: alertThreshold,
+          isActive: isActive
         };
-        console.log('📅 Budget period:', data.period);
+
+        if (monthlyCategory) {
+          monthlyData.category = monthlyCategory;
+          console.log('📂 Monthly budget for category:', monthlyCategory);
+        }
+
+        console.log('📦 Monthly budget data:', monthlyData);
+        budgetService.create(monthlyData);
+        budgetsCreated++;
       }
 
-      console.log('📦 Budget data prepared:', data);
+      // Create yearly budget if enabled
+      if (enableYearly) {
+        const yearlyAmount = parseFloat(formData.get('yearlyAmount'));
+        if (!yearlyAmount || yearlyAmount <= 0) {
+          Toast.error('Please enter a valid yearly budget amount');
+          return;
+        }
 
-      budgetService.create(data);
-      console.log('✅ Budget created successfully');
+        const yearlyCategory = formData.get('yearlyCategory');
+        const yearlyData = {
+          type: 'yearly',
+          amount: yearlyAmount,
+          currency: currency,
+          alertThreshold: alertThreshold,
+          isActive: isActive
+        };
 
-      Toast.success('Budget created successfully!');
+        if (yearlyCategory) {
+          yearlyData.category = yearlyCategory;
+          console.log('📂 Yearly budget for category:', yearlyCategory);
+        }
+
+        console.log('📦 Yearly budget data:', yearlyData);
+        budgetService.create(yearlyData);
+        budgetsCreated++;
+      }
+
+      console.log('✅ Budgets created successfully:', budgetsCreated);
+
+      Toast.success(`${budgetsCreated} budget${budgetsCreated > 1 ? 's' : ''} created successfully!`);
       modal.close();
       console.log('🔄 Reloading view:', this.currentView);
       this.loadView(this.currentView);
@@ -968,6 +1067,137 @@ class App {
       console.error('❌ Error saving budget:', error);
       Toast.error('Failed to create budget: ' + error.message);
     }
+  }
+
+  editBudget(id) {
+    console.log('✏️ editBudget called with id:', id);
+    const budget = budgetService.getById(id);
+
+    if (!budget) {
+      console.error('❌ Budget not found:', id);
+      Toast.error('Budget not found');
+      return;
+    }
+
+    console.log('📋 Editing budget:', budget);
+
+    const form = this.createEditBudgetForm(budget);
+    const modal = new Modal('Edit Budget', form, {
+      footer: `
+        <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+        <button class="btn btn-primary" data-action="save">Update</button>
+      `
+    });
+
+    modal.open();
+    console.log('✅ Edit budget modal opened');
+
+    modal.element.querySelector('[data-action="save"]').addEventListener('click', () => {
+      console.log('💾 Update budget button clicked');
+      this.updateBudget(modal, id);
+    });
+
+    modal.element.querySelector('[data-action="cancel"]').addEventListener('click', () => {
+      console.log('❌ Cancel clicked in edit budget modal');
+      modal.close();
+    });
+  }
+
+  createEditBudgetForm(budget) {
+    console.log('📝 Creating edit budget form for:', budget);
+    const selectedCategory = budget.category || '';
+
+    return `
+      <form id="editBudgetForm">
+        <div class="form-group">
+          <label class="form-label">Budget Type</label>
+          <input type="text" class="form-input" value="${budget.type.charAt(0).toUpperCase() + budget.type.slice(1)}" disabled>
+        </div>
+
+        <div class="grid grid-cols-2">
+          <div class="form-group">
+            <label class="form-label">Amount *</label>
+            <input type="number" class="form-input" name="amount" step="0.01" min="0" value="${budget.amount}" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Currency</label>
+            <select class="form-select" name="currency">
+              ${this.renderCurrencyOptionsWithSelection(budget.currency)}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Category (Optional)</label>
+          <select class="form-select" name="category">
+            <option value="">All Categories</option>
+            ${this.categories.map(c => `<option value="${c.name}" ${c.name === selectedCategory ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')}
+          </select>
+          <small style="color: var(--text-secondary); font-size: 12px;">
+            Leave empty to track all spending, or select a category to track specific spending
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Alert Threshold (%)</label>
+          <input type="number" class="form-input" name="alertThreshold" value="${budget.alertThreshold}" min="0" max="100" step="5">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" name="isActive" ${budget.isActive ? 'checked' : ''} style="width: auto;">
+            <span>Active</span>
+          </label>
+        </div>
+      </form>
+    `;
+  }
+
+  updateBudget(modal, id) {
+    console.log('💾 updateBudget called for id:', id);
+    const form = modal.element.querySelector('#editBudgetForm');
+    const formData = new FormData(form);
+
+    try {
+      const category = formData.get('category');
+      const data = {
+        amount: parseFloat(formData.get('amount')),
+        currency: formData.get('currency'),
+        category: category || null,
+        alertThreshold: parseInt(formData.get('alertThreshold')) || 80,
+        isActive: formData.get('isActive') === 'on'
+      };
+
+      console.log('📦 Updated budget data:', data);
+
+      budgetService.update(id, data);
+      console.log('✅ Budget updated successfully');
+
+      Toast.success('Budget updated successfully!');
+      modal.close();
+      this.loadView(this.currentView);
+    } catch (error) {
+      console.error('❌ Error updating budget:', error);
+      Toast.error('Failed to update budget: ' + error.message);
+    }
+  }
+
+  deleteBudget(id) {
+    console.log('🗑️ deleteBudget called with id:', id);
+
+    Modal.confirm('Delete Budget', 'Are you sure you want to delete this budget?', () => {
+      console.log('✅ User confirmed budget deletion');
+      try {
+        budgetService.delete(id);
+        console.log('✅ Budget deleted:', id);
+        Toast.success('Budget deleted');
+        this.loadView(this.currentView);
+      } catch (error) {
+        console.error('❌ Error deleting budget:', error);
+        Toast.error('Failed to delete budget: ' + error.message);
+      }
+    });
   }
 
   updateCurrencySettings() {
